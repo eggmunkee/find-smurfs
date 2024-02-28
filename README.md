@@ -2,8 +2,12 @@
 
 Find the smurfs residing in an FEC contributions csv file.
 
+![Find Smurfs Window](docs/img/find_smurfs_screenshot.png)
+
 ## Usage
 
+Run without arguments to use GUI
+> or
 `python find_smurfs.py <contributions_csv_file_path>`
 
 ## Columns Required
