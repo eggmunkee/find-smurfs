@@ -51,6 +51,9 @@ Run without arguments to use GUI
 
 * Dollar amount less than 200
 * 5 or more transactions of the same amount
+* Employer is Unemployed or Retired
+
+> These options can be changed in options panel on the left side of the window. (GUI - graphical user interface only)
 
 ## Outputs
 
