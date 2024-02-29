@@ -10,18 +10,21 @@ from tkinter.ttk import *
 # initialize smurf stats and result data
 def create_smurf_stats():
     return {
-        "id_columns": ['contributor_last_name', 'contributor_first_name', 'contributor_zip', 'contribution_receipt_amount'],
+        "id_columns": ['contributor_last_name', 'contributor_first_name', 'contributor_employer', 'contributor_zip', 'contribution_receipt_amount'],
         "total_subset_count": 0,
         "total_subset_amount": 0.0,
         "small_donor_id_strings": {},
         "donation_max_threshold": 200.0,
-        "donation_count_discard_threshold": 5
+        "donation_count_discard_threshold": 5,
+        "records_processed": 0,
+        "only_unemployed_or_retired": True
     }
 
 def reset_stats(smurf_stats):
     smurf_stats['total_subset_count'] = 0
     smurf_stats['total_subset_amount'] = 0.0
     smurf_stats['small_donor_id_strings'] = {}
+    smurf_stats['records_processed'] = 0
 
 # get a unique id string for a record to compare across rows
 def get_smurf_id(smurf_stats, record):
@@ -35,15 +38,25 @@ def pop_smurf_id_amount(smurf_stats, smurf_id):
 
 # check if a record is a smurf based on the max amount threshold and count in stats
 def is_smurf(smurf_stats, record):
-    record_amount = float(record['contribution_receipt_amount'])
+    try:
+        record_amount = float(record['contribution_receipt_amount'])
+    except ValueError:
+        record_amount = 0.0
+    smurf_stats['records_processed'] += 1
     if record_amount > 0.0 and record_amount < smurf_stats['donation_max_threshold']:
         smurf_id = get_smurf_id(smurf_stats, record)
-        if not (smurf_id in smurf_stats['small_donor_id_strings']):
-            smurf_stats['small_donor_id_strings'][smurf_id] = 0
-            #print("Smurf ID: " + smurf_id + "*")          
-        smurf_stats['small_donor_id_strings'][smurf_id] += 1
-        if smurf_stats['small_donor_id_strings'][smurf_id] % smurf_stats['donation_count_discard_threshold'] == 0:
-            return "Smurf ID: " + smurf_id + " ... " + str(smurf_stats['small_donor_id_strings'][smurf_id]) + "x"
+        employer = ""
+        if 'contributor_employer' in record:
+            employer = record['contributor_employer']
+        # only count unemployed or retired as smurfs
+        is_retired_or_unemployed = employer.lower().find('unemployed') > -1 or employer.lower().find('retired') > -1
+        if smurf_stats['only_unemployed_or_retired'] == False or is_retired_or_unemployed:
+            if not (smurf_id in smurf_stats['small_donor_id_strings']):
+                smurf_stats['small_donor_id_strings'][smurf_id] = 0
+                #print("Smurf ID: " + smurf_id + "*")          
+            smurf_stats['small_donor_id_strings'][smurf_id] += 1
+            if smurf_stats['small_donor_id_strings'][smurf_id] % smurf_stats['donation_count_discard_threshold'] == 0:
+                return "Smurf ID: " + smurf_id + " ... " + str(smurf_stats['small_donor_id_strings'][smurf_id]) + "x"
     return ""
 
 # go through the smurf candidate list and remove all below the count threshold
@@ -84,11 +97,15 @@ def main(args):
         trim_sum_smurfs(smurf_stats)
         smurf_donor_count = smurf_stats['small_donor_id_strings'].__len__()
         print ("-----------------------------------------")
+        print ("Total records processed:        " + str(smurf_stats['records_processed']))
+        print ("Employment Filter (Only Retired/Unemmpoyed): " + str(smurf_stats['only_unemployed_or_retired']))
         print ("Total smurf count:              " + str(smurf_donor_count))
         print ("Total smurf transactions count: " + str(smurf_stats['total_subset_count']))
-        print ("Smurf transactions per smurf:   " + str(smurf_stats['total_subset_count'] / smurf_donor_count))
+        if smurf_donor_count > 0:
+            print ("Smurf transactions per smurf:   " + str(smurf_stats['total_subset_count'] / smurf_donor_count))
         print ("Total smurf dollar amount:      " + str(smurf_stats['total_subset_amount']))
-        print ("Smurf dollar amount per smurf:  " + str(smurf_stats['total_subset_amount'] / smurf_donor_count))
+        if smurf_donor_count > 0:
+            print ("Smurf dollar amount per smurf:  " + str(smurf_stats['total_subset_amount'] / smurf_donor_count))
 
 # The SyncCSVReadAndText class is a wrapper around the process of reading a CSV file and updating a text area with the results
 #  It holds a generator to continue reading from the file while updating the text area and letting the UI respond
@@ -172,6 +189,7 @@ class FindSmurfsApp(tk.Tk):
         self.cancel_button = None
         self.var_max_amount = tk.IntVar()
         self.var_count_threshold = tk.IntVar()
+        self.var_retired_or_unemployed = tk.BooleanVar()
 
         self.smurf_stats = create_smurf_stats()
 
@@ -216,6 +234,12 @@ class FindSmurfsApp(tk.Tk):
         self.cancel_button = Button(self.left_frame, text="Cancel", command=self.cancel_process, style="Delete.TButton")
         self.cancel_button.pack(pady=5, side="top")
         self.cancel_button.config(state="disabled")
+
+        self.employment_filter_label = Label(self.left_frame, text="Employment Filter")
+        self.employment_filter_label.pack(pady=5)
+        self.employment_filter = Checkbutton(self.left_frame, text="Only Retired/Unemployed", variable=self.var_retired_or_unemployed, onvalue=True, offvalue=False)
+        self.employment_filter.pack(pady=5)
+        self.var_retired_or_unemployed.set(True)
 
         self.max_amount_label = Label(self.left_frame, text="Max Amount")
         self.max_amount_label.pack(pady=5)
@@ -270,12 +294,15 @@ class FindSmurfsApp(tk.Tk):
         if output:
             output = output.replace("|", " | ")
             self.log_area.insert(tk.END, output + "\n")
+        if self.smurf_stats['records_processed'] % 500 == 0:
+            self.log_area.insert(tk.END, "(" + str(self.smurf_stats['records_processed']) + "/?)\n")
         self.update_idletasks()
 
     def start_process(self):
         reset_stats(self.smurf_stats)
         self.smurf_stats['donation_max_threshold'] = float(self.var_max_amount.get())
         self.smurf_stats['donation_count_discard_threshold'] = int(self.var_count_threshold.get())
+        self.smurf_stats['only_unemployed_or_retired'] = self.var_retired_or_unemployed.get()
         if self.csv_file:
             self.start_button.config(state="disabled")
             self.cancel_button.config(state="normal")
@@ -303,6 +330,8 @@ class FindSmurfsApp(tk.Tk):
 
         # finished processing - output smurf stats
         self.log_area.insert(tk.END, "-----------------------------------------\n")
+        self.log_area.insert(tk.END, "Total records processed:         " + str(self.smurf_stats['records_processed']) + "\n")
+        self.log_area.insert(tk.END, "Employment Filter (Only Retired/Unemmpoyed): " + str(self.smurf_stats['only_unemployed_or_retired']) + "\n")
         self.log_area.insert(tk.END, "Total smurf count:               " + str(smurf_donor_count) + "\n")
         self.log_area.insert(tk.END, "Total smurf transactions count:  " + str(self.smurf_stats['total_subset_count']) + "\n")
         if smurf_donor_count > 0:
