@@ -2,7 +2,7 @@
 
 Find the smurfs residing in an FEC contributions csv file.
 
-![Find Smurfs Window](docs/img/find_smurfs_screenshot.png)
+![Find Smurfs Window](docs/img/find_smurfs_screenshot_v2.png)
 
 # Prerequisite - Python3
 ## Install Python for Windows
