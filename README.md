@@ -4,6 +4,31 @@ Find the smurfs residing in an FEC contributions csv file.
 
 ![Find Smurfs Window](docs/img/find_smurfs_screenshot.png)
 
+# Prerequisite - Python3
+## Install Python for Windows
+The python installer for Windows is found below at the python website.
+
+[Python Installs for Windows](https://www.python.org/downloads/windows/)
+
+## Install Python for Mac OS
+The python installer for Mac OS is found below at the python website.
+
+[Python Installs for Mac](https://www.python.org/downloads/macos/)
+
+### Install Python3 on Linux Mint for example:
+
+Rough python3 dependencies install steps
+
+`sudo apt install python3`
+
+`sudo apt install python3-pip`
+
+`pip install python3-tk`
+
+To make usr/bin/python find python3 I used
+
+`sudo apt install python-is-python3`
+
 ## Usage
 
 Run without arguments to use GUI
