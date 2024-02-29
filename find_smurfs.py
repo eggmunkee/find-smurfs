@@ -146,7 +146,7 @@ class SyncCSVReadAndText():
         self.file_obj = None
         self.csv_gen = None
 
-# The FindSmurfsApp is a TK App with the following UI widgets and features drawn from the more_complex_exampe_tk_app.py:
+# The FindSmurfsApp is a TK App with the following UI widgets and features:
 #  * In a top Frame:
 #  * A file dialog to select a csv file, with a label showing the selected CSV file
 #  * In a left side Frame:
@@ -170,6 +170,8 @@ class FindSmurfsApp(tk.Tk):
         self.clear_log_button = None
         self.start_button = None
         self.cancel_button = None
+        self.var_max_amount = tk.IntVar()
+        self.var_count_threshold = tk.IntVar()
 
         self.smurf_stats = create_smurf_stats()
 
@@ -181,10 +183,14 @@ class FindSmurfsApp(tk.Tk):
         self.style = ttk.Style()
         self.style.configure("TButton", padding=6, relief="flat", background="#bbb", font=("Comic Sans", 12))
         self.style.configure("Primary.TButton", padding=6, relief="flat", background="#8ae")
+        self.style.configure("Delete.TButton", padding=6, relief="flat", background="#e99")
         self.style.configure("TMain", padding=6, relief="groove", background="#bdf")
         self.style.configure("TFrame", padding=6, relief="groove", background="#bdf")
         self.style.configure("Smurf.TFrame", padding=6, relief="groove", background="#68d")
         self.style.configure("TLabel", padding=2, background="#68d", foreground="#fff")
+        self.style.configure("TScrollbar", padding=2, background="#68d", foreground="#8ae")
+
+        # ----------------------------------------------------
 
         self.top_frame = Frame(self, height=200, borderwidth=2, relief="groove")
         self.top_frame.pack(fill="x")
@@ -198,6 +204,8 @@ class FindSmurfsApp(tk.Tk):
         self.file_label = Label(self.top_frame, text="No file selected")
         self.file_label.pack(padx=5, side="left")
 
+        # ----------------------------------------------------
+
         self.left_frame = Frame(self, width=200, borderwidth=2, relief="groove", style="Smurf.TFrame")
         self.left_frame.pack(side="left", fill="y")
 
@@ -205,15 +213,44 @@ class FindSmurfsApp(tk.Tk):
         self.start_button.pack(pady=5, side="top")
         self.start_button.config(state="disabled")
 
-        self.cancel_button = Button(self.left_frame, text="Cancel", command=self.cancel_process)
+        self.cancel_button = Button(self.left_frame, text="Cancel", command=self.cancel_process, style="Delete.TButton")
         self.cancel_button.pack(pady=5, side="top")
         self.cancel_button.config(state="disabled")
 
-        self.log_area = scrolledtext.ScrolledText(self, wrap=tk.WORD, width=40, height=10)
-        self.log_area.pack(fill="both", expand=True)
+        self.max_amount_label = Label(self.left_frame, text="Max Amount")
+        self.max_amount_label.pack(pady=5)
+        self.max_amount_entry = Spinbox(self.left_frame, from_=1, to=1000, textvariable=self.var_max_amount)
+        self.max_amount_entry.pack(pady=5)
+        self.var_max_amount.set(200)
 
-        self.clear_log_button = Button(self, text="Clear Log", command=self.clear_log)
-        self.clear_log_button.pack(pady=5, side="bottom")
+        self.count_threshold_label = Label(self.left_frame, text="Count Threshold")
+        self.count_threshold_label.pack(pady=5)
+        self.count_threshold_entry = Spinbox(self.left_frame, from_=5, to=500, textvariable=self.var_count_threshold)
+        self.count_threshold_entry.pack(pady=5)
+        self.var_count_threshold.set(5)
+
+        # ----------------------------------------------------
+
+        self.log_frame = Frame(self, style="Smurf.TFrame")
+        self.log_frame.pack(fill="both", expand=True)
+
+        self.log_area = tk.Text(self.log_frame, wrap="none")
+        vsb = Scrollbar(self.log_frame, command=self.log_area.yview, orient="vertical")
+        hsb = Scrollbar(self.log_frame, command=self.log_area.xview, orient="horizontal")
+        self.log_area.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
+        self.log_frame.grid_rowconfigure(0, weight=1)
+        self.log_frame.grid_columnconfigure(0, weight=1)
+
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        self.log_area.grid(row=0, column=0, sticky="nsew")
+
+        # ---------------------------------------------------
+
+        self.clear_log_button = Button(self.log_frame, text="Clear Log", command=self.clear_log, style="Delete.TButton")
+        self.clear_log_button.grid(row=2, column=0, pady=5, sticky="s")
+        #self.clear_log_button.pack(pady=5, side="bottom")
 
     def select_csv_file(self):
         self.csv_file = filedialog.askopenfilename()
@@ -231,11 +268,14 @@ class FindSmurfsApp(tk.Tk):
         # process the record
         output = is_smurf(self.smurf_stats, record)
         if output:
+            output = output.replace("|", " | ")
             self.log_area.insert(tk.END, output + "\n")
         self.update_idletasks()
 
     def start_process(self):
         reset_stats(self.smurf_stats)
+        self.smurf_stats['donation_max_threshold'] = float(self.var_max_amount.get())
+        self.smurf_stats['donation_count_discard_threshold'] = int(self.var_count_threshold.get())
         if self.csv_file:
             self.start_button.config(state="disabled")
             self.cancel_button.config(state="normal")
