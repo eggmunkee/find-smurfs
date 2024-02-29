@@ -10,10 +10,15 @@ Run without arguments to use GUI
 > or
 `python find_smurfs.py <contributions_csv_file_path>`
 
+## Example - Sam Brown for US Senate Results:
+
+[Sam Brown Results](docs/example_sam_brown_ussenate.txt)
+
 ## Columns Required
 
 * contributor_last_name
 * contributor_first_name
+* contributor_employer
 * contributor_zip
 * contributor_receipt_amount
 
