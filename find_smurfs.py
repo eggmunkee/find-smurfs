@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import csv
 import tkinter as tk
 from tkinter import filedialog, scrolledtext
@@ -17,7 +18,9 @@ def create_smurf_stats():
         "donation_max_threshold": 200.0,
         "donation_count_discard_threshold": 5,
         "records_processed": 0,
-        "only_unemployed_or_retired": True
+        "include_unemployed_or_retired": True,
+        "include_blank_employer": False,
+        
     }
 
 def reset_stats(smurf_stats):
@@ -50,7 +53,15 @@ def is_smurf(smurf_stats, record):
             employer = record['contributor_employer']
         # only count unemployed or retired as smurfs
         is_retired_or_unemployed = employer.lower().find('unemployed') > -1 or employer.lower().find('retired') > -1
-        if smurf_stats['only_unemployed_or_retired'] == False or is_retired_or_unemployed:
+        is_blank = employer.strip() == ""
+        passed_filter = True # include all if no include filters
+        if smurf_stats['include_unemployed_or_retired'] or smurf_stats['include_blank_employer']:
+            passed_filter = False # not included unless one of the filters matches
+            if smurf_stats['include_unemployed_or_retired'] and is_retired_or_unemployed:
+                passed_filter = True
+            if smurf_stats['include_blank_employer'] and is_blank:
+                passed_filter = True
+        if passed_filter:
             if not (smurf_id in smurf_stats['small_donor_id_strings']):
                 smurf_stats['small_donor_id_strings'][smurf_id] = 0
                 #print("Smurf ID: " + smurf_id + "*")          
@@ -98,7 +109,8 @@ def main(args):
         smurf_donor_count = smurf_stats['small_donor_id_strings'].__len__()
         print ("-----------------------------------------")
         print ("Total records processed:        " + str(smurf_stats['records_processed']))
-        print ("Employment Filter (Only Retired/Unemmpoyed): " + str(smurf_stats['only_unemployed_or_retired']))
+        print ("Employer Include (Retired/Unemployed): " + str(smurf_stats['include_unemployed_or_retired']))
+        print ("Employer Include (Blank):              " + str(smurf_stats['include_blank_employer']))
         print ("Total smurf count:              " + str(smurf_donor_count))
         print ("Total smurf transactions count: " + str(smurf_stats['total_subset_count']))
         if smurf_donor_count > 0:
@@ -177,10 +189,11 @@ class SyncCSVReadAndText():
 class FindSmurfsApp(tk.Tk):
     def __init__(self):
         super().__init__()
-
+        # setup window properties
         self.title("Find Smurfs")
-        self.geometry("900x700")
-
+        self.iconphoto(True, tk.PhotoImage(file=os.path.join(os.path.dirname(__file__),"img","favicon.gif")))
+        self.size_and_center()
+        # create variables
         self.csv_file = None
         self.csv_read = None
         self.log_area = None
@@ -190,12 +203,25 @@ class FindSmurfsApp(tk.Tk):
         self.var_max_amount = tk.IntVar()
         self.var_count_threshold = tk.IntVar()
         self.var_retired_or_unemployed = tk.BooleanVar()
-
+        self.var_include_blank = tk.BooleanVar()
+        # create data structures
         self.smurf_stats = create_smurf_stats()
-
+        # create ui widgets
         self.create_widgets()
-
+        # setup csv read and text sync helper
         self.sync_csv_read = SyncCSVReadAndText(self, self.log_area, self.process_record, self.finished_process)
+
+    def size_and_center(self):
+        window_width = 900
+        window_height = 700
+        # get the screen dimension
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        # find the center point
+        center_x = int(screen_width/2 - window_width / 2)
+        center_y = int(screen_height/2 - window_height / 2)
+        # set the position of the window to the center of the screen
+        self.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
 
     def create_widgets(self):
         self.style = ttk.Style()
@@ -206,6 +232,7 @@ class FindSmurfsApp(tk.Tk):
         self.style.configure("TFrame", padding=6, relief="groove", background="#bdf")
         self.style.configure("Smurf.TFrame", padding=6, relief="groove", background="#68d")
         self.style.configure("TLabel", padding=2, background="#68d", foreground="#fff")
+        self.style.configure("Smurf.TLabel", padding=2, pady=0, background="#9df", foreground="#000", font=("Comic Sans",9, "bold"))
         self.style.configure("TScrollbar", padding=2, background="#68d", foreground="#8ae")
 
         # ----------------------------------------------------
@@ -235,22 +262,25 @@ class FindSmurfsApp(tk.Tk):
         self.cancel_button.pack(pady=5, side="top")
         self.cancel_button.config(state="disabled")
 
-        self.employment_filter_label = Label(self.left_frame, text="Employment Filter")
-        self.employment_filter_label.pack(pady=5)
-        self.employment_filter = Checkbutton(self.left_frame, text="Only Retired/Unemployed", variable=self.var_retired_or_unemployed, onvalue=True, offvalue=False)
-        self.employment_filter.pack(pady=5)
+        self.employment_filter_label = Label(self.left_frame, text="Include If Employer Is", style="Smurf.TLabel")
+        self.employment_filter_label.pack(pady=(8,2))
+        self.employment_filter = Checkbutton(self.left_frame, text="Retired/Unemployed", variable=self.var_retired_or_unemployed, onvalue=True, offvalue=False)
+        self.employment_filter.pack(padx=5, pady=(2,2))
         self.var_retired_or_unemployed.set(True)
+        self.employment_filter_2 = Checkbutton(self.left_frame, text="Blank", variable=self.var_include_blank, onvalue=True, offvalue=False)
+        self.employment_filter_2.pack(padx=5, pady=(2,8))
+        self.var_include_blank.set(False)
 
-        self.max_amount_label = Label(self.left_frame, text="Max Amount")
-        self.max_amount_label.pack(pady=5)
+        self.max_amount_label = Label(self.left_frame, text="Max Receipt Amount ($)", style="Smurf.TLabel")
+        self.max_amount_label.pack(pady=(8,2))
         self.max_amount_entry = Spinbox(self.left_frame, from_=1, to=1000, textvariable=self.var_max_amount)
-        self.max_amount_entry.pack(pady=5)
+        self.max_amount_entry.pack(pady=(2,8))
         self.var_max_amount.set(200)
 
-        self.count_threshold_label = Label(self.left_frame, text="Count Threshold")
-        self.count_threshold_label.pack(pady=5)
+        self.count_threshold_label = Label(self.left_frame, text="Repeat __ or More Times", style="Smurf.TLabel")
+        self.count_threshold_label.pack(pady=(8,2))
         self.count_threshold_entry = Spinbox(self.left_frame, from_=5, to=500, textvariable=self.var_count_threshold)
-        self.count_threshold_entry.pack(pady=5)
+        self.count_threshold_entry.pack(pady=(2,8))
         self.var_count_threshold.set(5)
 
         # ----------------------------------------------------
@@ -274,7 +304,6 @@ class FindSmurfsApp(tk.Tk):
 
         self.clear_log_button = Button(self.log_frame, text="Clear Log", command=self.clear_log, style="Delete.TButton")
         self.clear_log_button.grid(row=2, column=0, pady=5, sticky="s")
-        #self.clear_log_button.pack(pady=5, side="bottom")
 
     def select_csv_file(self):
         self.csv_file = filedialog.askopenfilename()
@@ -302,7 +331,8 @@ class FindSmurfsApp(tk.Tk):
         reset_stats(self.smurf_stats)
         self.smurf_stats['donation_max_threshold'] = float(self.var_max_amount.get())
         self.smurf_stats['donation_count_discard_threshold'] = int(self.var_count_threshold.get())
-        self.smurf_stats['only_unemployed_or_retired'] = self.var_retired_or_unemployed.get()
+        self.smurf_stats['include_unemployed_or_retired'] = self.var_retired_or_unemployed.get()
+        self.smurf_stats['include_blank_employer'] = self.var_include_blank.get()
         if self.csv_file:
             self.start_button.config(state="disabled")
             self.cancel_button.config(state="normal")
@@ -331,7 +361,8 @@ class FindSmurfsApp(tk.Tk):
         # finished processing - output smurf stats
         self.log_area.insert(tk.END, "-----------------------------------------\n")
         self.log_area.insert(tk.END, "Total records processed:         " + str(self.smurf_stats['records_processed']) + "\n")
-        self.log_area.insert(tk.END, "Employment Filter (Only Retired/Unemmpoyed): " + str(self.smurf_stats['only_unemployed_or_retired']) + "\n")
+        self.log_area.insert(tk.END, "Employer Include: (Retired/Unemployed): " + str(self.smurf_stats['include_unemployed_or_retired']) + "\n")
+        self.log_area.insert(tk.END, "Employer Include: (Blank):              " + str(self.smurf_stats['include_blank_employer']) + "\n")
         self.log_area.insert(tk.END, "Total smurf count:               " + str(smurf_donor_count) + "\n")
         self.log_area.insert(tk.END, "Total smurf transactions count:  " + str(self.smurf_stats['total_subset_count']) + "\n")
         if smurf_donor_count > 0:
